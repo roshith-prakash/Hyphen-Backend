@@ -6,6 +6,8 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 dotenv.config();
 import userRouter from "./routes/user.route.js";
+import timetableRouter from "./routes/timetable.route.js";
+import attendanceRouter from "./routes/attendance.route.js";
 const app = express();
 let server = http.createServer(app);
 const whitelist = ["http://localhost:3000", "https://quizzer-ai.vercel.app"];
@@ -33,6 +35,8 @@ app.get("/api/v1", (_, res) => {
     res.status(200).send("We are good to go!");
 });
 app.use("/api/v1/user", userRouter);
+app.use("/api/v1/timetable", timetableRouter);
+app.use("/api/v1/attendance", attendanceRouter);
 server.listen(process.env.PORT, () => {
     console.log(`Server running on port ${process.env.PORT}`);
 });

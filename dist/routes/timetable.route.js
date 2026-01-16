@@ -1,0 +1,11 @@
+import express from "express";
+import upload from "../utils/multer.js";
+import { checkTimetable, uploadTimetable, confirmTimetable, getTimetable, updateTimetable, deleteTimetable, } from "../controllers/timetable.controller.js";
+const router = express.Router();
+router.post("/check", checkTimetable);
+router.post("/upload", upload.single("timetable"), uploadTimetable);
+router.post("/confirm", confirmTimetable);
+router.post("/", getTimetable);
+router.put("/", updateTimetable);
+router.delete("/", deleteTimetable);
+export default router;

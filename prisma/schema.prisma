@@ -13,7 +13,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Schema for user
+// ============================================
+// USER MODEL
+// ============================================
+
 model User {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   // UID received from firebase
@@ -24,8 +27,154 @@ model User {
   email       String   @unique
   // User's Display picture link
   photoURL    String?  @default("")
-  bonusCredit Float    @default(0)
   // Created & updated times
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Relations for attendance tracking
+  timetables        Timetable[]
+  attendanceRecords AttendanceRecord[]
+}
+
+// ============================================
+// TIMETABLE MODELS
+// ============================================
+
+// Main timetable document for a user (extracted via Gemini OCR)
+model Timetable {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Extracted metadata from OCR
+  program       String // e.g., "MCA", "B.Tech CSE"
+  semester      String // e.g., "Semester 4"
+  effectiveDate DateTime // When timetable becomes active
+
+  // Semester configuration (user input after OCR)
+  totalWeeks     Int // Total weeks in semester
+  completedWeeks Int   @default(0) // Weeks completed so far
+  minAttendance  Float @default(75) // Required attendance percentage (e.g., 75%)
+
+  // User's batch (for handling split sessions)
+  userBatch String @default("All") // "All", "B1", "B2"
+
+  // Original document storage
+  documentUrl String // Cloudinary URL of uploaded timetable image
+  rawOcrData  Json // Full Gemini OCR response for reference
+
+  // Related data
+  schedule          DaySchedule[]
+  subjects          Subject[]
+  attendanceRecords AttendanceRecord[]
+
+  isActive  Boolean  @default(true) // Only one active timetable per user
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Daily schedule extracted from timetable
+model DaySchedule {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  timetableId String    @db.ObjectId
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+
+  day   String // "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+  slots TimeSlot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Individual time slot within a day
+model TimeSlot {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  dayScheduleId String      @db.ObjectId
+  daySchedule   DaySchedule @relation(fields: [dayScheduleId], references: [id], onDelete: Cascade)
+
+  timeStart String // "09:00" (24-hour format)
+  timeEnd   String // "10:00" (24-hour format)
+  type      String // "Lecture", "Lab", "Tutorial", "Break", "Other"
+
+  // For single-batch or "All" batch slots
+  subject String? // Subject name
+  faculty String? // Faculty name/initials
+  room    String? // Room number
+  batch   String  @default("All") // "All", "B1", "B2"
+
+  // For split sessions (multiple batches doing different things at same time)
+  // Array of {batch: string, subject: string, faculty: string, room: string}
+  sessions Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// SUBJECT & ATTENDANCE MODELS
+// ============================================
+
+// Aggregated subject info (derived from timetable slots based on user's batch)
+model Subject {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  timetableId String    @db.ObjectId
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+
+  name           String // Subject name
+  type           String // "Lecture", "Lab", "Tutorial"
+  classesPerWeek Int // Calculated from timetable slots
+  totalExpected  Int // classesPerWeek * totalWeeks
+
+  // Attendance tracking (updated when attendance is verified)
+  attended  Int @default(0) // Classes attended
+  totalHeld Int @default(0) // Total classes held so far
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Uploaded attendance record (ERP screenshot, attendance sheet, etc.)
+model AttendanceRecord {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @db.ObjectId
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timetableId String    @db.ObjectId
+  timetable   Timetable @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+
+  documentUrl  String // Cloudinary URL of uploaded document
+  documentType String // "pdf", "jpg", "png"
+  ocrData      Json? // Extracted attendance data from Gemini
+  isVerified   Boolean @default(false) // Whether user has verified the extraction
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// DAILY ATTENDANCE MODEL
+// ============================================
+
+// Per-day, per-slot attendance record
+model DailyAttendance {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String @db.ObjectId
+  subjectId String @db.ObjectId
+
+  // Date and time slot info
+  date      DateTime // The date of the class (just date, no time)
+  timeStart String // "09:00" - start time of the slot
+  timeEnd   String // "10:00" - end time of the slot
+
+  // Subject info (denormalized for easy querying)
+  subjectName String
+  subjectType String // "Lecture", "Lab", "Tutorial"
+
+  // Attendance status
+  status String // "present" or "absent"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Unique constraint: one record per user, per subject, per date, per time slot
+  @@unique([userId, subjectId, date, timeStart])
 }

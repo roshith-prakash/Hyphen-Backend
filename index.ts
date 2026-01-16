@@ -10,6 +10,8 @@ dotenv.config();
 // Importing Routes ----------------------------------------------------------------------------------------------
 
 import userRouter from "./routes/user.route.ts";
+import timetableRouter from "./routes/timetable.route.ts";
+import attendanceRouter from "./routes/attendance.route.ts";
 
 // Initializing Server -------------------------------------------------------------------------------------------
 
@@ -69,6 +71,10 @@ app.get("/api/v1", (_, res: Response) => {
 
 // Auth Routes
 app.use("/api/v1/user", userRouter);
+// Timetable Routes
+app.use("/api/v1/timetable", timetableRouter);
+// Attendance Routes
+app.use("/api/v1/attendance", attendanceRouter);
 
 
 // Listening on PORT -------------------------------------------------------------------------------------------
