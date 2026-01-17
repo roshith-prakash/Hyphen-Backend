@@ -23,7 +23,7 @@ let server = http.createServer(app);
 // Using Middleware -------------------------------------------------------------------------------------------
 
 // Whitelist for trusted domains
-const whitelist = ["http://localhost:3000", "https://quizzer-ai.vercel.app"];
+const whitelist = ["http://localhost:3000", "https://safezone-hyphen.vercel.app"];
 
 // Function to deny access to domains except those in whitelist.
 const corsOptions: CorsOptions = {
