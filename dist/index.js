@@ -8,6 +8,7 @@ dotenv.config();
 import userRouter from "./routes/user.route.js";
 import timetableRouter from "./routes/timetable.route.js";
 import attendanceRouter from "./routes/attendance.route.js";
+import attendanceUploadRouter from "./routes/attendance-upload.route.js";
 import aiGuidanceRouter from "./routes/ai-guidance.route.js";
 const app = express();
 let server = http.createServer(app);
@@ -38,6 +39,7 @@ app.get("/api/v1", (_, res) => {
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/timetable", timetableRouter);
 app.use("/api/v1/attendance", attendanceRouter);
+app.use("/api/v1/attendance", attendanceUploadRouter);
 app.use("/api/v1/ai-guidance", aiGuidanceRouter);
 server.listen(process.env.PORT, () => {
     console.log(`Server running on port ${process.env.PORT}`);

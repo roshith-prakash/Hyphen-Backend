@@ -1,6 +1,8 @@
 import express from "express";
 import { Request, Response } from "express";
 import { prisma } from "../utils/prismaClient.ts";
+import { extractAttendanceReport } from "../utils/gemini.ts";
+import { matchSubjectFromReport } from "../utils/attendance-helper.ts";
 
 const router = express.Router();
 

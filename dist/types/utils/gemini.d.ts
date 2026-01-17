@@ -57,3 +57,25 @@ export declare function generateAttendanceGuidance(attendanceData: {
         isAtRisk: boolean;
     }>;
 }): Promise<any>;
+export interface AttendanceReportRecord {
+    courseCode: string;
+    courseName: string;
+    type: string;
+    batch: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    status: "present" | "absent";
+}
+export interface AttendanceReportResult {
+    studentName: string;
+    rollNo: string;
+    program: string;
+    semester: string;
+    duration: {
+        from: string;
+        to: string;
+    };
+    records: AttendanceReportRecord[];
+}
+export declare function extractAttendanceReport(imageUrl: string): Promise<AttendanceReportResult | null>;

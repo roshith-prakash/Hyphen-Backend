@@ -1,0 +1,141 @@
+﻿
+const router = express.Router();
+
+// Upload attendance report and sync records
+// POST /api/v1/attendance/upload-report
+router.post("/upload-report", async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { userId, reportUrl } = req.body;
+
+        if (!userId || !reportUrl) {
+            res.status(400).send({ error: "userId and reportUrl are required" });
+            return;
+        }
+
+        console.log("Processing attendance report for user:", userId);
+
+        // Extract data from PDF using Gemini
+        const reportData = await extractAttendanceReport(reportUrl);
+
+        if (!reportData) {
+            res.status(400).send({ error: "Failed to extract data from report" });
+            return;
+        }
+
+        console.log(`Extracted ${reportData.records.length} records from report`);
+
+        // Get user's timetable and batch
+        const timetable = await prisma.timetable.findFirst({
+            where: { userId, isActive: true },
+            include: { subjects: true },
+        });
+
+        if (!timetable) {
+            res.status(404).send({ error: "No active timetable found" });
+            return;
+        }
+
+        const userBatch = timetable.userBatch || "All";
+        console.log("User batch:", userBatch);
+
+        // Process records
+        const results = {
+            processed: 0,
+            created: 0,
+            duplicates: 0,
+            filtered: 0,
+            unmatched: [] as string[],
+        };
+
+        for (const record of reportData.records) {
+            // Filter by batch
+            if (record.batch !== "All" && record.batch !== userBatch && userBatch !== "All") {
+                results.filtered++;
+                continue;
+            }
+
+            // Match subject
+            const matchedSubject = await matchSubjectFromReport(
+                record.courseName,
+                record.type,
+                timetable.subjects
+            );
+
+            if (!matchedSubject) {
+                results.unmatched.push(record.courseCode);
+                continue;
+            }
+
+            // Check for duplicate
+            const attendanceDate = new Date(record.date);
+            attendanceDate.setHours(0, 0, 0, 0);
+
+            const existing = await prisma.dailyAttendance.findFirst({
+                where: {
+                    userId,
+                    subjectId: matchedSubject.id,
+                    date: attendanceDate,
+                    timeStart: record.startTime,
+                },
+            });
+
+            if (existing) {
+                results.duplicates++;
+                continue;
+            }
+
+            // Create attendance record
+            await prisma.dailyAttendance.create({
+                data: {
+                    userId,
+                    subjectId: matchedSubject.id,
+                    date: attendanceDate,
+                    timeStart: record.startTime,
+                    timeEnd: record.endTime,
+                    subjectName: matchedSubject.name,
+                    subjectType: matchedSubject.type,
+                    status: record.status,
+                },
+            });
+
+            results.created++;
+        }
+
+        results.processed = results.created + results.duplicates;
+
+        console.log("Processing complete:", results);
+
+        // Update subject attendance counters
+        for (const subject of timetable.subjects) {
+            const weight = subject.weight || 1.0;
+            const allRecords = await prisma.dailyAttendance.findMany({
+                where: { subjectId: subject.id },
+            });
+
+            const totalHeld = allRecords
+                .filter((r) => r.status !== "not-conducted")
+                .reduce((sum) => sum + weight, 0);
+
+            const attended = allRecords
+                .filter((r) => r.status === "present")
+                .reduce((sum) => sum + weight, 0);
+
+            await prisma.subject.update({
+                where: { id: subject.id },
+                data: { attended, totalHeld },
+            });
+        }
+
+        res.status(200).send({
+            success: true,
+            results,
+            reportInfo: {
+                studentName: reportData.studentName,
+                duration: reportData.duration,
+            },
+        });
+    } catch (err) {
+        console.error("Error uploading attendance report:", err);
+        res.status(500).send({ error: "Failed to process report" });
+    }
+});

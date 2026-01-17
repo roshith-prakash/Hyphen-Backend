@@ -94,15 +94,14 @@ async function downloadImageAsBase64(imageUrl) {
     });
     const buffer = Buffer.from(response.data);
     const base64 = buffer.toString("base64");
-    let mimeType = "image/jpeg";
-    if (imageUrl.includes(".png")) {
-        mimeType = "image/png";
-    }
-    else if (imageUrl.includes(".pdf")) {
-        mimeType = "application/pdf";
-    }
-    else if (imageUrl.includes(".webp")) {
-        mimeType = "image/webp";
+    let mimeType = response.headers["content-type"] || "image/jpeg";
+    if (mimeType === "application/octet-stream") {
+        if (imageUrl.includes(".png"))
+            mimeType = "image/png";
+        else if (imageUrl.includes(".pdf"))
+            mimeType = "application/pdf";
+        else if (imageUrl.includes(".webp"))
+            mimeType = "image/webp";
     }
     return { base64, mimeType };
 }
@@ -289,5 +288,98 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
     catch (error) {
         console.error('Error generating attendance guidance:', error);
         throw new Error('Failed to generate AI guidance');
+    }
+}
+const ATTENDANCE_REPORT_EXTRACTION_PROMPT = `
+**Role:** You are a Data Extraction Expert specializing in academic attendance reports.
+
+**Task:** Analyze the provided attendance PDF report and extract ALL attendance records in JSON format.
+
+The report contains:
+1. Student details (name, roll number, program, semester, duration)
+2. A table with columns: Sr No, Course Name, Date, Start Time, End Time, Attendance
+
+**Course Name Format:**
+- Pattern: "{Subject}{Type}{Section} {Program} {Batch?}"
+- Examples:
+  - "Software EngineeringT1 MCA" → Subject="Software Engineering", Type="T1", Batch="All"
+  - "Advanced JavaP1 MCA B2" → Subject="Advanced Java", Type="P1", Batch="B2"
+
+**Type Code Mapping:**
+- "T1" or "T" → "Lecture"
+- "P1" or "P" → "Lab"
+- "U1" or "U" → "Lecture"
+
+**Attendance Code Mapping:**
+- "P" → "present"
+- "A" → "absent"
+- "NU", "AG", "L" → "present"
+
+**Instructions:**
+Extract ALL table rows with:
+- courseCode (full string)
+- courseName (clean subject name)
+- type ("Lecture" or "Lab")
+- batch ("B1", "B2", or "All")
+- date (YYYY-MM-DD)
+- startTime, endTime (HH:MM 24-hour)
+- status ("present" or "absent")
+
+**Output Schema:**
+{
+  "studentName": "Student Name",
+  "rollNo": "Roll Number",
+  "program": "Program Name",
+  "semester": "Semester",
+  "duration": {
+    "from": "YYYY-MM-DD",
+    "to": "YYYY-MM-DD"
+  },
+  "records": [
+    {
+      "courseCode": "Subject Code",
+      "courseName": "Subject Name",
+      "type": "Lecture" or "Lab",
+      "batch": "All" or "B1/B2",
+      "date": "YYYY-MM-DD",
+      "startTime": "HH:MM",
+      "endTime": "HH:MM",
+      "status": "present" or "absent"
+    }
+  ]
+}
+
+Return ONLY valid JSON, no markdown. Ensure the "records" array is present even if empty.
+`;
+export async function extractAttendanceReport(imageUrl) {
+    try {
+        const { base64, mimeType } = await downloadImageAsBase64(imageUrl);
+        const response = await ai.models.generateContent({
+            model: "gemini-2.0-flash-exp",
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: ATTENDANCE_REPORT_EXTRACTION_PROMPT },
+                        {
+                            inlineData: {
+                                data: base64,
+                                mimeType: mimeType,
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+        const text = response.text || "";
+        const cleanedText = text
+            .replace(/```json\n?/g, "")
+            .replace(/```\n?/g, "")
+            .trim();
+        return JSON.parse(cleanedText);
+    }
+    catch (error) {
+        console.error("Error extracting attendance report:", error);
+        return null;
     }
 }
