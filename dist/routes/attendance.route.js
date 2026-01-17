@@ -89,6 +89,27 @@ router.post("/date", async (req, res) => {
         res.status(500).send({ error: "Something went wrong." });
     }
 });
+router.post("/all", async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            res.status(400).send({ error: "userId is required" });
+            return;
+        }
+        const records = await prisma.dailyAttendance.findMany({
+            where: { userId },
+            orderBy: { date: "asc" },
+        });
+        res.status(200).send({
+            success: true,
+            records,
+        });
+    }
+    catch (err) {
+        console.error("Error fetching all attendance records:", err);
+        res.status(500).send({ error: "Something went wrong." });
+    }
+});
 router.post("/history", async (req, res) => {
     try {
         const { userId, limit = 30 } = req.body;

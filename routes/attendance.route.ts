@@ -114,6 +114,32 @@ router.post("/date", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// Get all attendance records for a user (for dashboard analytics)
+// POST /api/v1/attendance/all
+router.post("/all", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      res.status(400).send({ error: "userId is required" });
+      return;
+    }
+
+    const records = await prisma.dailyAttendance.findMany({
+      where: { userId },
+      orderBy: { date: "asc" },
+    });
+
+    res.status(200).send({
+      success: true,
+      records,
+    });
+  } catch (err) {
+    console.error("Error fetching all attendance records:", err);
+    res.status(500).send({ error: "Something went wrong." });
+  }
+});
+
 // Get attendance history for a user (all dates)
 // POST /api/v1/attendance/history
 router.post("/history", async (req: Request, res: Response): Promise<void> => {
