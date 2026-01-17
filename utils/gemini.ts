@@ -298,3 +298,111 @@ export async function extractAttendanceData(
 }
 
 export { ai };
+
+/**
+ * Generate AI-powered attendance guidance
+ */
+export async function generateAttendanceGuidance(attendanceData: {
+  overallPercentage: number;
+  minAttendance: number;
+  completedWeeks: number;
+  totalWeeks: number;
+  subjects: Array<{
+    name: string;
+    type: string;
+    currentPercentage: number;
+    attended: number;
+    totalHeld: number;
+    classesPerWeek: number;
+    isAtRisk: boolean;
+  }>;
+}) {
+  const remainingWeeks = attendanceData.totalWeeks - attendanceData.completedWeeks;
+  const atRiskSubjects = attendanceData.subjects.filter(s => s.isAtRisk);
+  
+  const subjectList = attendanceData.subjects
+    .map(s => `- ${s.name} (${s.type}): ${s.currentPercentage.toFixed(1)}% (${s.attended}/${s.totalHeld} classes)`)
+    .join('\n');
+  
+  const atRiskList = atRiskSubjects.length > 0
+    ? atRiskSubjects.map(s => `- ${s.name}: ${s.currentPercentage.toFixed(1)}%`).join('\n')
+    : 'None - all subjects are on track!';
+
+  const prompt = `
+You are an academic attendance advisor helping a college student understand their attendance situation and plan for improvement.
+
+**Student's Current Situation:**
+- Overall Attendance: ${attendanceData.overallPercentage.toFixed(1)}%
+- Minimum Required: ${attendanceData.minAttendance}%
+- Weeks Completed: ${attendanceData.completedWeeks} of ${attendanceData.totalWeeks}
+- Remaining Weeks: ${remainingWeeks}
+
+**Subject-wise Breakdown:**
+${subjectList}
+
+**At-Risk Subjects (below ${attendanceData.minAttendance}%):**
+${atRiskList}
+
+**Your Task:**
+Provide a concise, empathetic analysis in these sections:
+
+1. **Risk Assessment** (2-3 sentences)
+   - Explain their current attendance status clearly
+   - Highlight the most critical subjects if any
+
+2. **Immediate Actions** (3-4 bullet points)
+   - Specific, actionable steps they should take this week
+   - Prioritize by urgency
+   - Be concrete (e.g., "Attend all Database lectures this week" not "Try to attend more")
+
+3. **Strategic Advice** (2-3 bullet points)
+   - Long-term planning suggestions
+   - How to stay on track for the rest of the semester
+
+4. **Motivation** (1-2 sentences)
+   - Encouraging message based on their situation
+   - Acknowledge progress if any
+
+Keep your tone:
+- Supportive and non-judgmental
+- Clear and direct
+- Motivating but realistic
+
+Return ONLY a valid JSON object with this structure (no markdown, no code blocks):
+{
+  "riskLevel": "low|medium|high",
+  "riskExplanation": "...",
+  "immediateActions": ["...", "...", "..."],
+  "strategicAdvice": ["...", "..."],
+  "motivationalMessage": "..."
+}
+`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash-exp",
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+    });
+
+    const responseText = response.text || "";
+    
+    // Clean up the response (remove markdown code blocks if present)
+    let cleanedText = responseText.trim();
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.replace(/```json\n?/, '').replace(/\n?```$/, '');
+    } else if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.replace(/```\n?/, '').replace(/\n?```$/, '');
+    }
+    
+    const guidance = JSON.parse(cleanedText);
+    return guidance;
+  } catch (error) {
+    console.error('Error generating attendance guidance:', error);
+    throw new Error('Failed to generate AI guidance');
+  }
+}

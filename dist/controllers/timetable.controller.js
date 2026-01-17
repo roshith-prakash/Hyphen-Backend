@@ -119,6 +119,10 @@ export const confirmTimetable = async (req, res) => {
         catch (_a) {
             effectiveDate = new Date();
         }
+        const now = new Date();
+        const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
+        const weeksSinceStart = Math.floor((now.getTime() - effectiveDate.getTime()) / millisecondsPerWeek);
+        const calculatedCompletedWeeks = Math.max(0, Math.min(weeksSinceStart, totalWeeks));
         const timetable = await prisma.timetable.create({
             data: {
                 userId: userId,
@@ -126,7 +130,7 @@ export const confirmTimetable = async (req, res) => {
                 semester: ocrData.semester || "Unknown Semester",
                 effectiveDate: effectiveDate,
                 totalWeeks: totalWeeks,
-                completedWeeks: completedWeeks,
+                completedWeeks: calculatedCompletedWeeks,
                 minAttendance: minAttendance,
                 userBatch: userBatch,
                 documentUrl: documentUrl,
@@ -290,6 +294,17 @@ export const getTimetable = async (req, res) => {
                 message: "Please upload your timetable first.",
             });
             return;
+        }
+        const now = new Date();
+        const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
+        const weeksSinceStart = Math.floor((now.getTime() - timetable.effectiveDate.getTime()) / millisecondsPerWeek);
+        const currentCompletedWeeks = Math.max(0, Math.min(weeksSinceStart, timetable.totalWeeks));
+        if (currentCompletedWeeks !== timetable.completedWeeks) {
+            await prisma.timetable.update({
+                where: { id: timetable.id },
+                data: { completedWeeks: currentCompletedWeeks },
+            });
+            timetable.completedWeeks = currentCompletedWeeks;
         }
         res.status(200).send({ timetable });
     }

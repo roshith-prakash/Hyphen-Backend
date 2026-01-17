@@ -183,7 +183,7 @@ export const confirmTimetable = async (
       },
     });
 
-    // Parse effective date
+    // Parse effective date (semester start date)
     let effectiveDate: Date;
     try {
       effectiveDate = new Date(ocrData.effective_date);
@@ -194,6 +194,12 @@ export const confirmTimetable = async (
       effectiveDate = new Date();
     }
 
+    // Calculate completed weeks automatically based on semester start date
+    const now = new Date();
+    const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
+    const weeksSinceStart = Math.floor((now.getTime() - effectiveDate.getTime()) / millisecondsPerWeek);
+    const calculatedCompletedWeeks = Math.max(0, Math.min(weeksSinceStart, totalWeeks));
+
     // Create the timetable
     const timetable = await prisma.timetable.create({
       data: {
@@ -202,7 +208,7 @@ export const confirmTimetable = async (
         semester: ocrData.semester || "Unknown Semester",
         effectiveDate: effectiveDate,
         totalWeeks: totalWeeks,
-        completedWeeks: completedWeeks,
+        completedWeeks: calculatedCompletedWeeks,
         minAttendance: minAttendance,
         userBatch: userBatch,
         documentUrl: documentUrl,
@@ -404,6 +410,21 @@ export const getTimetable = async (
         message: "Please upload your timetable first.",
       });
       return;
+    }
+
+    // Recalculate completed weeks based on current date
+    const now = new Date();
+    const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1000;
+    const weeksSinceStart = Math.floor((now.getTime() - timetable.effectiveDate.getTime()) / millisecondsPerWeek);
+    const currentCompletedWeeks = Math.max(0, Math.min(weeksSinceStart, timetable.totalWeeks));
+
+    // Update if different
+    if (currentCompletedWeeks !== timetable.completedWeeks) {
+      await prisma.timetable.update({
+        where: { id: timetable.id },
+        data: { completedWeeks: currentCompletedWeeks },
+      });
+      timetable.completedWeeks = currentCompletedWeeks;
     }
 
     res.status(200).send({ timetable });
