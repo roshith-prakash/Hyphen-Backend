@@ -1,6 +1,8 @@
 import express from "express";
 import { Request, Response } from "express";
 import { prisma } from "../utils/prismaClient.ts";
+import { extractAttendanceReport } from "../utils/gemini.ts";
+import { matchSubjectFromReport } from "../utils/attendance-helper.ts";
 
 const router = express.Router();
 
@@ -45,16 +47,33 @@ router.post("/mark", async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    // Recalculate subject totals from all daily records
+    // Fetch subject to get weight multiplier
+    const subject = await prisma.subject.findUnique({
+      where: { id: subjectId },
+    });
+
+    if (!subject) {
+      res.status(404).send({ error: "Subject not found" });
+      return;
+    }
+
+    const weight = subject.weight || 1.0;
+
+    // Recalculate subject totals from all daily records with weight applied
     const allRecords = await prisma.dailyAttendance.findMany({
       where: { subjectId },
     });
 
-    // Only count classes that were actually held (present or absent)
-    const totalHeld = allRecords.filter((r) => r.status === "present" || r.status === "absent").length;
-    const attended = allRecords.filter((r) => r.status === "present").length;
+    // Apply weight to each record count
+    const totalHeld = allRecords
+      .filter((r) => r.status === "present" || r.status === "absent")
+      .reduce((sum) => sum + weight, 0);
 
-    // Update the Subject aggregate
+    const attended = allRecords
+      .filter((r) => r.status === "present")
+      .reduce((sum) => sum + weight, 0);
+
+    // Update the Subject aggregate with weighted values
     await prisma.subject.update({
       where: { id: subjectId },
       data: { attended, totalHeld },
@@ -88,7 +107,7 @@ router.post("/date", async (req: Request, res: Response): Promise<void> => {
 
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(attendanceDate);
     endOfDay.setHours(23, 59, 59, 999);
 
@@ -236,11 +255,19 @@ router.post("/delete", async (req: Request, res: Response): Promise<void> => {
 
     // Recalculate subject totals if subjectId provided
     if (subjectId) {
+      const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+      const weight = subject?.weight || 1.0;
+
       const allRecords = await prisma.dailyAttendance.findMany({
         where: { subjectId },
       });
-      const totalHeld = allRecords.filter((r) => r.status === "present" || r.status === "absent").length;
-      const attended = allRecords.filter((r) => r.status === "present").length;
+
+      const totalHeld = allRecords
+        .filter((r) => r.status === "present" || r.status === "absent")
+        .reduce((sum) => sum + weight, 0);
+      const attended = allRecords
+        .filter((r) => r.status === "present")
+        .reduce((sum) => sum + weight, 0);
 
       await prisma.subject.update({
         where: { id: subjectId },

@@ -1,6 +1,9 @@
 import cloudinary from "../utils/cloudinary.js";
 import { prisma } from "../utils/prismaClient.js";
 import { validateTimetableImage, extractTimetableData, } from "../utils/gemini.js";
+function getSubjectWeight(type) {
+    return type.toLowerCase() === 'lab' ? 2.0 : 1.0;
+}
 export const checkTimetable = async (req, res) => {
     var _a;
     try {
@@ -186,7 +189,7 @@ export const confirmTimetable = async (req, res) => {
                         }
                     }
                 }
-                else if ((slot.batch === "All" || slot.batch === userBatch) &&
+                else if ((userBatch === "All" || slot.batch === "All" || slot.batch === userBatch) &&
                     slot.subject) {
                     const key = `${slot.subject}_${slot.type}`;
                     const existing = subjectMap.get(key);
@@ -235,6 +238,7 @@ export const confirmTimetable = async (req, res) => {
                     type: subjectData.type,
                     classesPerWeek: subjectData.count,
                     totalExpected: subjectData.count * totalWeeks,
+                    weight: getSubjectWeight(subjectData.type),
                     attended: (oldData === null || oldData === void 0 ? void 0 : oldData.attended) || 0,
                     totalHeld: (oldData === null || oldData === void 0 ? void 0 : oldData.totalHeld) || 0,
                 },

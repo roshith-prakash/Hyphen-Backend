@@ -12,6 +12,7 @@ dotenv.config();
 import userRouter from "./routes/user.route.ts";
 import timetableRouter from "./routes/timetable.route.ts";
 import attendanceRouter from "./routes/attendance.route.ts";
+import attendanceUploadRouter from "./routes/attendance-upload.route.ts";
 import aiGuidanceRouter from "./routes/ai-guidance.route.ts";
 
 // Initializing Server -------------------------------------------------------------------------------------------
@@ -76,6 +77,7 @@ app.use("/api/v1/user", userRouter);
 app.use("/api/v1/timetable", timetableRouter);
 // Attendance Routes
 app.use("/api/v1/attendance", attendanceRouter);
+app.use("/api/v1/attendance", attendanceUploadRouter);
 // AI Guidance Routes
 app.use("/api/v1/ai-guidance", aiGuidanceRouter);
 

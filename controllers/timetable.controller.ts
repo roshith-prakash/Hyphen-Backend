@@ -8,6 +8,15 @@ import {
   TimeSlotData,
 } from "../utils/gemini.ts";
 
+/**
+ * Get weight multiplier for subject type
+ * Labs are 2x weight (longer, more critical)
+ * Lectures are 1x weight (standard)
+ */
+function getSubjectWeight(type: string): number {
+  return type.toLowerCase() === 'lab' ? 2.0 : 1.0;
+}
+
 // Types for request bodies
 interface ConfirmTimetableBody {
   userId: string;
@@ -279,9 +288,12 @@ export const confirmTimetable = async (
             }
           }
         } else if (
-          (slot.batch === "All" || slot.batch === userBatch) &&
+          (userBatch === "All" || slot.batch === "All" || slot.batch === userBatch) &&
           slot.subject
         ) {
+          // If user is in "All" batch, create subjects for all slots
+          // If slot is for "All" batches, create subject
+          // If slot batch matches user batch, create subject
           const key = `${slot.subject}_${slot.type}`;
           const existing = subjectMap.get(key);
           if (existing) {
@@ -331,7 +343,7 @@ export const confirmTimetable = async (
     // Create Subject records with preserved attendance data
     for (const [_, subjectData] of subjectMap) {
       const oldData = oldAttendanceMap.get(subjectData.name.toLowerCase().trim());
-      
+
       await prisma.subject.create({
         data: {
           timetableId: timetable.id,
@@ -339,6 +351,7 @@ export const confirmTimetable = async (
           type: subjectData.type,
           classesPerWeek: subjectData.count,
           totalExpected: subjectData.count * totalWeeks,
+          weight: getSubjectWeight(subjectData.type),
           // Preserve attendance data from old subjects if they match
           attended: oldData?.attended || 0,
           totalHeld: oldData?.totalHeld || 0,

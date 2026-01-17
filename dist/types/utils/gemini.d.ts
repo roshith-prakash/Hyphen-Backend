@@ -42,3 +42,40 @@ export declare function validateTimetableImage(imageUrl: string): Promise<Timeta
 export declare function extractTimetableData(imageUrl: string): Promise<TimetableOCRResult | null>;
 export declare function extractAttendanceData(imageUrl: string): Promise<AttendanceOCRResult | null>;
 export { ai };
+export declare function generateAttendanceGuidance(attendanceData: {
+    overallPercentage: number;
+    minAttendance: number;
+    completedWeeks: number;
+    totalWeeks: number;
+    subjects: Array<{
+        name: string;
+        type: string;
+        currentPercentage: number;
+        attended: number;
+        totalHeld: number;
+        classesPerWeek: number;
+        isAtRisk: boolean;
+    }>;
+}): Promise<any>;
+export interface AttendanceReportRecord {
+    courseCode: string;
+    courseName: string;
+    type: string;
+    batch: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    status: "present" | "absent";
+}
+export interface AttendanceReportResult {
+    studentName: string;
+    rollNo: string;
+    program: string;
+    semester: string;
+    duration: {
+        from: string;
+        to: string;
+    };
+    records: AttendanceReportRecord[];
+}
+export declare function extractAttendanceReport(imageUrl: string): Promise<AttendanceReportResult | null>;
