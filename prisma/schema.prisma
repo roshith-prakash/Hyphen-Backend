@@ -126,6 +126,9 @@ model Subject {
   totalExpected  Int // classesPerWeek * totalWeeks
 
   // Attendance tracking (updated when attendance is verified)
+  // Weight multiplier: Lab=2.0, Lecture=1.0
+  weight    Float @default(1.0)
+  // NOTE: attended and totalHeld store WEIGHTED values
   attended  Int @default(0) // Classes attended
   totalHeld Int @default(0) // Total classes held so far
 

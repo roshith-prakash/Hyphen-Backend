@@ -34,11 +34,23 @@ router.post("/mark", async (req, res) => {
                 status,
             },
         });
+        const subject = await prisma.subject.findUnique({
+            where: { id: subjectId },
+        });
+        if (!subject) {
+            res.status(404).send({ error: "Subject not found" });
+            return;
+        }
+        const weight = subject.weight || 1.0;
         const allRecords = await prisma.dailyAttendance.findMany({
             where: { subjectId },
         });
-        const totalHeld = allRecords.filter((r) => r.status === "present" || r.status === "absent").length;
-        const attended = allRecords.filter((r) => r.status === "present").length;
+        const totalHeld = allRecords
+            .filter((r) => r.status === "present" || r.status === "absent")
+            .reduce((sum) => sum + weight, 0);
+        const attended = allRecords
+            .filter((r) => r.status === "present")
+            .reduce((sum) => sum + weight, 0);
         await prisma.subject.update({
             where: { id: subjectId },
             data: { attended, totalHeld },
@@ -184,11 +196,17 @@ router.post("/delete", async (req, res) => {
             where: { id: recordId },
         });
         if (subjectId) {
+            const subject = await prisma.subject.findUnique({ where: { id: subjectId } });
+            const weight = (subject === null || subject === void 0 ? void 0 : subject.weight) || 1.0;
             const allRecords = await prisma.dailyAttendance.findMany({
                 where: { subjectId },
             });
-            const totalHeld = allRecords.filter((r) => r.status === "present" || r.status === "absent").length;
-            const attended = allRecords.filter((r) => r.status === "present").length;
+            const totalHeld = allRecords
+                .filter((r) => r.status === "present" || r.status === "absent")
+                .reduce((sum) => sum + weight, 0);
+            const attended = allRecords
+                .filter((r) => r.status === "present")
+                .reduce((sum) => sum + weight, 0);
             await prisma.subject.update({
                 where: { id: subjectId },
                 data: { attended, totalHeld },
